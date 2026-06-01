@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Noto_Sans } from "next/font/google";
 import {
   ClerkProvider,
   SignInButton,
@@ -8,6 +8,9 @@ import {
   UserButton,
 } from "@clerk/nextjs";
 import "./globals.css";
+import { cn } from "@/lib/utils";
+
+const notoSans = Noto_Sans({subsets:['latin'],variable:'--font-sans'});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,18 +35,29 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", notoSans.variable)}
     >
       <body className="min-h-full flex flex-col">
         <ClerkProvider>
-          <header className="flex items-center gap-4 p-4">
-            <Show when="signed-out">
-              <SignInButton />
-              <SignUpButton />
-            </Show>
-            <Show when="signed-in">
-              <UserButton />
-            </Show>
+          <header className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800">
+            <span className="text-xl font-bold tracking-tight">Lifting Journey</span>
+            <div className="flex items-center gap-3">
+              <Show when="signed-out">
+                <SignInButton mode="modal">
+                  <button className="cursor-pointer px-4 py-2 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                    Sign in
+                  </button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <button className="cursor-pointer px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+                    Sign up
+                  </button>
+                </SignUpButton>
+              </Show>
+              <Show when="signed-in">
+                <UserButton />
+              </Show>
+            </div>
           </header>
           {children}
         </ClerkProvider>
