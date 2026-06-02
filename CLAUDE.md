@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **IMPORTANT:** Always consult the `docs/` directory for this project's code standards and patterns before writing or modifying code, and follow them.
 
 - **UI generation** — refer to [`docs/ui.md`](docs/ui.md) (shadcn/ui-only components, `src/components/_base/` for reusable compositions, `date-fns` formatting, `src/helpers/` conventions).
+- **Data fetching** — refer to [`docs/data-fetching.md`](docs/data-fetching.md) (Server Components only, all queries in `src/data/` via Drizzle ORM, every query scoped to the authenticated user).
 
 ## Commands
 
