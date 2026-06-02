@@ -9,6 +9,8 @@ import {
 } from "@clerk/nextjs";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const notoSans = Noto_Sans({subsets:['latin'],variable:'--font-sans'});
 
@@ -35,13 +37,21 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", notoSans.variable)}
     >
       <body className="min-h-full flex flex-col">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
         <ClerkProvider>
           <header className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800">
             <span className="text-xl font-bold tracking-tight">Lifting Journey</span>
             <div className="flex items-center gap-3">
+              <ThemeToggle />
               <Show when="signed-out">
                 <SignInButton mode="modal">
                   <button className="cursor-pointer px-4 py-2 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
@@ -61,6 +71,7 @@ export default function RootLayout({
           </header>
           {children}
         </ClerkProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
