@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { isValid, parse } from "date-fns";
-import { CalendarX2 } from "lucide-react";
+import { CalendarX2, Plus } from "lucide-react";
 
 import { getWorkoutsByDate, type WorkoutWithExercises } from "@/data";
 import { WorkoutCard, type WorkoutView } from "@/components/workout-card";
+import { Button } from "@/components/ui/button";
 import { formatDate } from "@/helpers";
 
 import { DateFilter } from "./date-filter";
@@ -55,7 +57,15 @@ export default async function DashboardPage({
             Workouts on {formatDate(selectedDate)}
           </p>
         </div>
-        <DateFilter value={selectedDate} />
+        <div className="flex items-center gap-2">
+          <DateFilter value={selectedDate} />
+          <Button asChild size="lg">
+            <Link href="/dashboard/workout/new">
+              <Plus />
+              New workout
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <section className="flex flex-col gap-4">
