@@ -9,31 +9,13 @@ import {
   ExerciseCombobox,
   type ExerciseOption,
 } from "@/components/exercise-combobox";
+import { ExerciseRest, type RestMode } from "@/components/exercise-rest";
+import { ExerciseSet, type SetState } from "@/components/exercise-set";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
-} from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-
-/** How rest between sets is entered for an exercise. */
-type RestMode = "exercise" | "set";
-
-interface SetState {
-  key: string;
-  weight: string;
-  reps: string;
-  rpe: string;
-  /** Per-set rest in seconds; used when the exercise's restMode is "set". */
-  rest: string;
-  isWarmup: boolean;
-}
 
 interface ExerciseState {
   key: string;
@@ -265,51 +247,11 @@ export function WorkoutForm({ exercises }: WorkoutFormProps) {
               </Button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm text-muted-foreground">Rest</span>
-              <div className="inline-flex rounded-lg border p-0.5">
-                <Button
-                  type="button"
-                  variant={restPerSet ? "ghost" : "secondary"}
-                  size="sm"
-                  onClick={() =>
-                    updateExercise(exercise.key, { restMode: "exercise" })
-                  }
-                >
-                  Per exercise
-                </Button>
-                <Button
-                  type="button"
-                  variant={restPerSet ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() =>
-                    updateExercise(exercise.key, { restMode: "set" })
-                  }
-                >
-                  Per set
-                </Button>
-              </div>
-              {!restPerSet && (
-                <InputGroup className="w-36">
-                  <InputGroupInput
-                    type="number"
-                    inputMode="numeric"
-                    min="0"
-                    placeholder="Rest"
-                    aria-label="Rest between sets in seconds"
-                    value={exercise.exerciseRest}
-                    onChange={(e) =>
-                      updateExercise(exercise.key, {
-                        exerciseRest: e.target.value,
-                      })
-                    }
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupText>sec</InputGroupText>
-                  </InputGroupAddon>
-                </InputGroup>
-              )}
-            </div>
+            <ExerciseRest
+              restMode={exercise.restMode}
+              exerciseRest={exercise.exerciseRest}
+              onUpdate={(patch) => updateExercise(exercise.key, patch)}
+            />
 
             <div className="flex flex-col gap-2">
               <div
@@ -325,84 +267,20 @@ export function WorkoutForm({ exercises }: WorkoutFormProps) {
               </div>
 
               {exercise.sets.map((set, setIndex) => (
-                <div
+                <ExerciseSet
                   key={set.key}
-                  className={`grid ${gridCols} items-center gap-2`}
-                >
-                  <span className="text-sm tabular-nums text-muted-foreground">
-                    {setIndex + 1}
-                  </span>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.5"
-                    min="0"
-                    value={set.weight}
-                    onChange={(e) =>
-                      updateSet(exercise.key, set.key, {
-                        weight: e.target.value,
-                      })
-                    }
-                  />
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    min="0"
-                    value={set.reps}
-                    onChange={(e) =>
-                      updateSet(exercise.key, set.key, { reps: e.target.value })
-                    }
-                  />
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    min="1"
-                    max="10"
-                    value={set.rpe}
-                    onChange={(e) =>
-                      updateSet(exercise.key, set.key, { rpe: e.target.value })
-                    }
-                  />
-                  {restPerSet && (
-                    <Input
-                      type="number"
-                      inputMode="numeric"
-                      min="0"
-                      aria-label={`Rest after set ${setIndex + 1} in seconds`}
-                      value={set.rest}
-                      onChange={(e) =>
-                        updateSet(exercise.key, set.key, {
-                          rest: e.target.value,
-                        })
-                      }
-                    />
-                  )}
-                  <div className="flex justify-center">
-                    <Checkbox
-                      checked={set.isWarmup}
-                      onCheckedChange={(checked) =>
-                        updateSet(exercise.key, set.key, {
-                          isWarmup: checked === true,
-                        })
-                      }
-                      aria-label="Warmup set"
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Remove set"
-                    disabled={exercise.sets.length === 1}
-                    onClick={() =>
-                      updateExercise(exercise.key, {
-                        sets: exercise.sets.filter((s) => s.key !== set.key),
-                      })
-                    }
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
+                  set={set}
+                  index={setIndex}
+                  restPerSet={restPerSet}
+                  gridCols={gridCols}
+                  canRemove={exercise.sets.length > 1}
+                  onUpdate={(patch) => updateSet(exercise.key, set.key, patch)}
+                  onRemove={() =>
+                    updateExercise(exercise.key, {
+                      sets: exercise.sets.filter((s) => s.key !== set.key),
+                    })
+                  }
+                />
               ))}
 
               <Button
