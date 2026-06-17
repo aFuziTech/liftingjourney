@@ -12,6 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Data fetching** — refer to [`docs/data-fetching.md`](docs/data-fetching.md) (Server Components only, all queries in `src/data/` via Drizzle ORM, every query scoped to the authenticated user).
 - **Data mutations** — refer to [`docs/data-mutations.md`](docs/data-mutations.md) (writes via Server Actions in colocated `actions.ts`, typed non-`FormData` params, zod-validated, DB writes through `src/data/` helpers scoped to the authenticated user).
 - **Auth** — refer to [`docs/auth.md`](docs/auth.md) (Clerk-only via `@clerk/nextjs`, `ClerkProvider` + auth UI in the root layout, `clerkMiddleware()` in `src/proxy.ts`, identity from server-side `await auth()`, `users` table mirrors the Clerk `userId`).
+- **Routing** — refer to [`docs/routing.md`](docs/routing.md) (entire app mounted under `/dashboard`, every `/dashboard*` route protected, gating enforced once in the Next.js Proxy `src/proxy.ts` via Clerk's `createRouteMatcher` + `auth.protect()`).
 
 ## Commands
 
