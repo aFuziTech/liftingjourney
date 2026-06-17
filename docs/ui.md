@@ -98,6 +98,46 @@ Conventions:
 | `src/lib/utils.ts`     | `cn()` and other shadcn-owned utilities (leave as-is)       |
 | `src/components/_base/` | reusable **UI** compositions built on shadcn primitives     |
 
+## 5. Keep components small: split when it makes sense
+
+**Prefer small, focused components over large ones.** A component that grows long
+becomes hard to read, hard to reason about, and hard to maintain — its JSX, state,
+and event handlers all compete for attention in one file. When a component starts
+doing too much, **split it into smaller pieces** rather than letting it sprawl.
+
+Reach for a split when you notice any of these:
+
+- the file is long enough that you have to scroll to hold it in your head;
+- a self-contained chunk of JSX has a clear, nameable responsibility (a "rest"
+  control, a single "set" row, a card header, …);
+- a `.map(...)` body is more than a few lines — extract the **unitary item** into
+  its own component and keep the loop where it is;
+- the same shape of markup is repeated across screens (this also belongs in
+  [`src/components/_base/`](#2-reusable-base-components-srccomponents_base) if it's
+  reused).
+
+**How to split cleanly**
+
+- **One responsibility per component.** Name it after what it _is_ (`ExerciseRest`,
+  `ExerciseSet`), not where it happens to sit.
+- **Keep loops and orchestration in the parent.** Extract the repeated _item_, not
+  the loop. The parent owns the list, the add/remove buttons, and the state; the
+  child renders one item and reports changes back through callbacks.
+- **Pass narrow props and callbacks.** A child should receive only what it needs
+  and communicate up via focused handlers (`onUpdate`, `onRemove`), not the
+  parent's entire state object.
+- **Co-locate the types with the component that owns them.** The interface/type for
+  a piece of state lives in the component responsible for it (e.g. `SetState` in
+  `exercise-set.tsx`, `RestMode` in `exercise-rest.tsx`); the parent imports them.
+  This keeps dependencies pointing one way (parent → child) and avoids type cycles.
+- **Place single-screen pieces in `src/components/`**; promote to
+  `src/components/_base/` only once they're reused across more than one screen.
+
+> Example: `workout-form.tsx` was split so the form keeps the exercise list, its
+> loop, and the add/remove orchestration, while `ExerciseRest` owns the rest
+> controls and `ExerciseSet` owns a single editable set row. Each child takes
+> narrow props and reports changes back through callbacks.
+
 ## Quick reference
 
 ```tsx
