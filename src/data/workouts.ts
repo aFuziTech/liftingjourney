@@ -38,6 +38,33 @@ export type WorkoutWithExercises = Awaited<
   ReturnType<typeof getWorkoutsByDate>
 >[number];
 
+/**
+ * A single workout owned by the current user, with its exercises and sets in
+ * display order. Returns `undefined` when the id does not belong to the
+ * authenticated user. Always scoped to the user — see `docs/data-fetching.md`.
+ */
+export async function getWorkoutById(workoutId: string) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  return db.query.workouts.findFirst({
+    // userId in the where ensures another user's workoutId returns nothing.
+    where: and(
+      eq(schema.workouts.id, workoutId),
+      eq(schema.workouts.userId, userId),
+    ),
+    with: {
+      workoutExercises: {
+        orderBy: asc(schema.workoutExercises.order),
+        with: {
+          exercise: true,
+          sets: { orderBy: asc(schema.sets.order) },
+        },
+      },
+    },
+  });
+}
+
 /** A single set within a new workout exercise. */
 export interface CreateSetInput {
   weight?: number | null;
@@ -66,6 +93,9 @@ export interface CreateWorkoutWithExercisesInput {
   exercises: CreateWorkoutExerciseInput[];
 }
 
+/** Payload for {@link updateWorkoutWithExercises}. */
+export type UpdateWorkoutWithExercisesInput = CreateWorkoutWithExercisesInput;
+
 /** True when a set carries no logged data and should not be persisted. */
 function isEmptySet(set: CreateSetInput): boolean {
   return (
@@ -74,27 +104,20 @@ function isEmptySet(set: CreateSetInput): boolean {
 }
 
 /**
- * Create a workout together with its exercises and sets for the current user.
- * Catalog exercises are referenced by id (ownership verified); newly typed
- * names are upserted into the user's catalog. All writes are scoped to the
- * authenticated user — see `docs/data-mutations.md`.
- *
- * Note: the `neon-http` driver does not support interactive transactions, so
- * these dependent writes run sequentially rather than atomically.
+ * Resolve every exercise on a workout payload to a catalog id for `userId`.
+ * Verifies ownership of supplied ids and upserts any newly typed names into
+ * the user's catalog, returning a function that maps an exercise to its id.
+ * Shared by {@link createWorkoutWithExercises} and
+ * {@link updateWorkoutWithExercises}.
  */
-export async function createWorkoutWithExercises(
-  input: CreateWorkoutWithExercisesInput,
-) {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
-
-  // Make sure a mirror row exists before we reference it as a foreign key.
-  await db.insert(schema.users).values({ id: userId }).onConflictDoNothing();
-
+async function buildExerciseResolver(
+  userId: string,
+  exercises: CreateWorkoutExerciseInput[],
+): Promise<(e: CreateWorkoutExerciseInput) => string> {
   // Verify every catalog pick actually belongs to this user.
   const suppliedIds = [
     ...new Set(
-      input.exercises
+      exercises
         .map((e) => e.exerciseId)
         .filter((id): id is string => Boolean(id)),
     ),
@@ -116,7 +139,7 @@ export async function createWorkoutWithExercises(
   // Upsert any newly typed exercise names and map them back to their ids.
   const newNames = [
     ...new Set(
-      input.exercises
+      exercises
         .filter((e) => !e.exerciseId && e.newName)
         .map((e) => e.newName!.trim())
         .filter(Boolean),
@@ -135,12 +158,33 @@ export async function createWorkoutWithExercises(
     for (const row of rows) nameToId.set(row.name, row.id);
   }
 
-  const resolveExerciseId = (e: CreateWorkoutExerciseInput): string => {
+  return (e) => {
     if (e.exerciseId) return e.exerciseId;
     const id = nameToId.get(e.newName!.trim());
     if (!id) throw new Error("Could not resolve exercise");
     return id;
   };
+}
+
+/**
+ * Create a workout together with its exercises and sets for the current user.
+ * Catalog exercises are referenced by id (ownership verified); newly typed
+ * names are upserted into the user's catalog. All writes are scoped to the
+ * authenticated user — see `docs/data-mutations.md`.
+ *
+ * Note: the `neon-http` driver does not support interactive transactions, so
+ * these dependent writes run sequentially rather than atomically.
+ */
+export async function createWorkoutWithExercises(
+  input: CreateWorkoutWithExercisesInput,
+) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  // Make sure a mirror row exists before we reference it as a foreign key.
+  await db.insert(schema.users).values({ id: userId }).onConflictDoNothing();
+
+  const resolveExerciseId = await buildExerciseResolver(userId, input.exercises);
 
   // Insert the workout, then its exercises, then its sets. Ids are generated
   // up front so children can reference parents without extra round-trips.
@@ -152,6 +196,87 @@ export async function createWorkoutWithExercises(
     performedAt: input.performedAt,
     notes: input.notes ?? null,
   });
+
+  const workoutExerciseRows = input.exercises.map((e, index) => ({
+    id: crypto.randomUUID(),
+    workoutId,
+    exerciseId: resolveExerciseId(e),
+    order: index,
+    notes: e.notes ?? null,
+  }));
+  if (workoutExerciseRows.length > 0) {
+    await db.insert(schema.workoutExercises).values(workoutExerciseRows);
+  }
+
+  const setRows = workoutExerciseRows.flatMap((we, index) => {
+    let order = 0;
+    return input.exercises[index].sets
+      .filter((set) => !isEmptySet(set))
+      .map((set) => ({
+        workoutExerciseId: we.id,
+        order: order++,
+        weight: set.weight ?? null,
+        reps: set.reps ?? null,
+        rpe: set.rpe ?? null,
+        restSeconds: set.restSeconds ?? null,
+        isWarmup: set.isWarmup,
+      }));
+  });
+  if (setRows.length > 0) {
+    await db.insert(schema.sets).values(setRows);
+  }
+
+  return { id: workoutId };
+}
+
+/**
+ * Update an existing workout (owned by the current user) along with its
+ * exercises and sets. The workout's exercises and sets are fully replaced with
+ * the supplied payload — existing `workout_exercises` are deleted (cascading to
+ * their `sets`) and re-inserted. All writes are scoped to the authenticated
+ * user — see `docs/data-mutations.md`.
+ *
+ * Note: the `neon-http` driver does not support interactive transactions, so
+ * these dependent writes run sequentially rather than atomically.
+ */
+export async function updateWorkoutWithExercises(
+  workoutId: string,
+  input: UpdateWorkoutWithExercisesInput,
+) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  // Confirm the workout belongs to the user before touching anything below it.
+  const existing = await db.query.workouts.findFirst({
+    where: and(
+      eq(schema.workouts.id, workoutId),
+      eq(schema.workouts.userId, userId),
+    ),
+    columns: { id: true },
+  });
+  if (!existing) throw new Error("Workout not found");
+
+  const resolveExerciseId = await buildExerciseResolver(userId, input.exercises);
+
+  await db
+    .update(schema.workouts)
+    .set({
+      name: input.name ?? null,
+      performedAt: input.performedAt,
+      notes: input.notes ?? null,
+    })
+    .where(
+      and(
+        eq(schema.workouts.id, workoutId),
+        eq(schema.workouts.userId, userId),
+      ),
+    );
+
+  // Replace the children. Deleting the join rows cascades to their sets; the
+  // workout is already verified as owned, so scoping by workoutId is safe.
+  await db
+    .delete(schema.workoutExercises)
+    .where(eq(schema.workoutExercises.workoutId, workoutId));
 
   const workoutExerciseRows = input.exercises.map((e, index) => ({
     id: crypto.randomUUID(),

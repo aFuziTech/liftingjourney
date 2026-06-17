@@ -4,6 +4,7 @@ import * as React from "react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { createWorkoutAction } from "@/app/dashboard/workout/new/actions";
+import { updateWorkoutAction } from "@/app/dashboard/workout/[workoutId]/actions";
 import { DatePicker } from "@/components/_base/date-picker";
 import {
   ExerciseCombobox,
@@ -54,6 +55,72 @@ function newExercise(): ExerciseState {
   };
 }
 
+/** A persisted set, as loaded for editing an existing workout. */
+export interface InitialSet {
+  weight: number | null;
+  reps: number | null;
+  rpe: number | null;
+  restSeconds: number | null;
+  isWarmup: boolean;
+}
+
+/** A persisted exercise within a workout being edited. */
+export interface InitialExercise {
+  exerciseId: string;
+  name: string;
+  sets: InitialSet[];
+}
+
+/** Initial values used to seed the form when editing an existing workout. */
+export interface InitialWorkout {
+  id: string;
+  name: string | null;
+  performedAt: Date;
+  notes: string | null;
+  exercises: InitialExercise[];
+}
+
+/** Format a persisted numeric field as the string the inputs expect. */
+function numToInput(value: number | null): string {
+  return value == null ? "" : String(value);
+}
+
+function setStateFromInitial(set: InitialSet): SetState {
+  return {
+    key: crypto.randomUUID(),
+    weight: numToInput(set.weight),
+    reps: numToInput(set.reps),
+    rpe: numToInput(set.rpe),
+    rest: numToInput(set.restSeconds),
+    isWarmup: set.isWarmup,
+  };
+}
+
+function exerciseStateFromInitial(exercise: InitialExercise): ExerciseState {
+  const rests = exercise.sets.map((s) => s.restSeconds ?? null);
+  // The form stores one rest value per set; if every set shares it, present it
+  // as a single "per exercise" rest, otherwise fall back to per-set editing.
+  const uniform = rests.length > 0 && rests.every((r) => r === rests[0]);
+  return {
+    key: crypto.randomUUID(),
+    exerciseId: exercise.exerciseId,
+    name: exercise.name,
+    isNew: false,
+    restMode: uniform ? "exercise" : "set",
+    exerciseRest: uniform ? numToInput(rests[0]) : "",
+    sets:
+      exercise.sets.length > 0
+        ? exercise.sets.map(setStateFromInitial)
+        : [newSet()],
+  };
+}
+
+/** Seed the exercise list from initial values, or a single blank exercise. */
+function initialItems(initial?: InitialWorkout): ExerciseState[] {
+  if (!initial || initial.exercises.length === 0) return [newExercise()];
+  return initial.exercises.map(exerciseStateFromInitial);
+}
+
 /** Parse an optional numeric input; blank → null, otherwise the number. */
 function parseOptionalNumber(value: string): number | null {
   const trimmed = value.trim();
@@ -65,18 +132,29 @@ function parseOptionalNumber(value: string): number | null {
 export interface WorkoutFormProps {
   /** The user's exercise catalog, used to populate the picker. */
   exercises: ExerciseOption[];
+  /**
+   * When provided, the form edits this existing workout (calling
+   * {@link updateWorkoutAction}); when omitted, it creates a new one.
+   */
+  workout?: InitialWorkout;
 }
 
 /**
- * Form for logging a new workout with its exercises and sets. Builds a typed
- * payload and hands it to {@link createWorkoutAction}; the action redirects to
- * the dashboard on success. See `docs/data-mutations.md`.
+ * Form for logging or editing a workout with its exercises and sets. Builds a
+ * typed payload and hands it to {@link createWorkoutAction} (create) or
+ * {@link updateWorkoutAction} (edit, when `workout` is provided); the action
+ * redirects to the dashboard on success. See `docs/data-mutations.md`.
  */
-export function WorkoutForm({ exercises }: WorkoutFormProps) {
-  const [name, setName] = React.useState("");
-  const [performedAt, setPerformedAt] = React.useState<Date>(new Date());
-  const [notes, setNotes] = React.useState("");
-  const [items, setItems] = React.useState<ExerciseState[]>([newExercise()]);
+export function WorkoutForm({ exercises, workout }: WorkoutFormProps) {
+  const isEditing = workout != null;
+  const [name, setName] = React.useState(workout?.name ?? "");
+  const [performedAt, setPerformedAt] = React.useState<Date>(
+    () => workout?.performedAt ?? new Date(),
+  );
+  const [notes, setNotes] = React.useState(workout?.notes ?? "");
+  const [items, setItems] = React.useState<ExerciseState[]>(() =>
+    initialItems(workout),
+  );
   const [error, setError] = React.useState<string | null>(null);
   const [isPending, startTransition] = React.useTransition();
 
@@ -137,7 +215,11 @@ export function WorkoutForm({ exercises }: WorkoutFormProps) {
 
     startTransition(async () => {
       try {
-        await createWorkoutAction(payload);
+        if (workout) {
+          await updateWorkoutAction({ id: workout.id, ...payload });
+        } else {
+          await createWorkoutAction(payload);
+        }
       } catch (err) {
         // A redirect throws a special error that must propagate to Next.
         if (
@@ -307,7 +389,11 @@ export function WorkoutForm({ exercises }: WorkoutFormProps) {
 
       <div className="flex items-center justify-end gap-3">
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Saving…" : "Save workout"}
+          {isPending
+            ? "Saving…"
+            : isEditing
+              ? "Save changes"
+              : "Save workout"}
         </Button>
       </div>
     </form>

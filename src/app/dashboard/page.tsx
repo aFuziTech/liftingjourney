@@ -71,7 +71,13 @@ export default async function DashboardPage({
       <section className="flex flex-col gap-4">
         {workouts.length > 0 ? (
           workouts.map((workout) => (
-            <WorkoutCard key={workout.id} workout={workout} />
+            <Link
+              key={workout.id}
+              href={`/dashboard/workout/${workout.id}`}
+              className="block rounded-xl transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <WorkoutCard workout={workout} />
+            </Link>
           ))
         ) : (
           <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-16 text-center">
