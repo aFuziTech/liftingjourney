@@ -8,6 +8,7 @@ import {
   UserButton,
 } from "@clerk/nextjs";
 import "./globals.css";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -54,14 +55,10 @@ export default function RootLayout({
               <ThemeToggle />
               <Show when="signed-out">
                 <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                  <button className="cursor-pointer px-4 py-2 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                    Sign in
-                  </button>
+                  <Button variant="ghost">Sign in</Button>
                 </SignInButton>
                 <SignUpButton mode="modal">
-                  <button className="cursor-pointer px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
-                    Sign up
-                  </button>
+                  <Button>Sign up</Button>
                 </SignUpButton>
               </Show>
               <Show when="signed-in">
