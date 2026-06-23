@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 
 // The public landing page at "/".
 const isHome = createRouteMatcher(['/'])
+// The entire app lives under "/dashboard" and is signed-in only.
+const isProtected = createRouteMatcher(['/dashboard(.*)'])
 
 export default clerkMiddleware(async (auth, req) => {
   // Signed-in visitors to the landing page are sent straight to the app.
@@ -12,6 +14,9 @@ export default clerkMiddleware(async (auth, req) => {
       return NextResponse.redirect(new URL('/dashboard', req.url))
     }
   }
+
+  // Signed-out visitors never reach app content; Clerk handles the redirect.
+  if (isProtected(req)) await auth.protect()
 })
 
 export const config = {
